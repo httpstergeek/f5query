@@ -12,10 +12,11 @@ from splunklib.searchcommands import \
 
 platform = system().lower()
 
-# Lazy load python eggs. Loading eggs into python execution path
+# Loading eggs into python execution path
 if platform == 'darwin':
     platform = 'macosx'
-egg_dir = os.path.dirname(os.path.realpath(__file__))
+running_dir = os.path.dirname(os.path.realpath(__file__))
+egg_dir = os.path.join(running_dir, 'eggs')
 for filename in os.listdir(egg_dir):
     file_segments = filename.split('-')
     if filename.endswith('.egg'):
