@@ -32,9 +32,9 @@ import bigsuds
 
 def setup_logger(level):
     """
-        @param level: Logging level
-        @type level: logger object
-        @rtype: logger object
+        :param level: Logging level
+        :type level: logger object
+        :return : logger object
     """
     logger = logging.getLogger('splunk_cycle')
     logger.propagate = False  # Prevent the log messages from being duplicated in the python.log file
@@ -55,9 +55,10 @@ logger = setup_logger(logging.INFO)
 
 def get_stanza(conf, stanza):
     """
-    @param conf: splunk conf file
-    @param stanza: stanza (entry) from conf file
-    @return: returns dictionary of setting
+    Returns dict object of config file settings
+    :param conf: Splunk conf file name
+    :param stanza: stanza (entry) from conf file
+    :return: returns dictionary of setting
     """
     appdir = os.path.dirname(os.path.dirname(__file__))
     conf = "%s.conf" % conf
@@ -85,11 +86,11 @@ def tojson(jmessage):
 def convert_64bit(signed_high, signed_low):
     """
         Converts two 32 bit signed integers to a 64-bit unsigned integer
-        @param signed_high: signed 32bit integer.
-        @type signed_high: int
-        @param signed_low: signed 32bit integer.
-        @type signed_low: int
-        @rtype: int
+        :param signed_high: signed 32bit integer.
+        :type signed_high: int
+        :param signed_low: signed 32bit integer.
+        :type signed_low: int
+        :return: int
     """
     # x << n operation x shifted left by n bits
     if signed_high < 0:
@@ -121,9 +122,9 @@ class F5Client():
     def set_partition(self, partition):
         """
             Set active partition for methods.
-            @param partition: F5 partition name.
-            @type partition: str
-            @rtype: str
+            :param partition: F5 partition name.
+            :type partition: str
+            :return: str
         """
         activeparition = self.Management.Partition.get_active_partition()
         if partition != activeparition:
