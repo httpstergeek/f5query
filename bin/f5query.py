@@ -12,7 +12,7 @@ from splunklib.searchcommands import \
 
 platform = system().lower()
 
-# Loading eggs into python execution path
+# Lazy load python eggs. Loading eggs into python execution path
 if platform == 'darwin':
     platform = 'macosx'
 egg_dir = os.path.dirname(os.path.realpath(__file__))
