@@ -33,9 +33,9 @@ import bigsuds
 
 def setup_logger(level):
     """
-        :param level: Logging level
-        :type level: logger object
-        :return : logger object
+    :param level: Logging level
+    :type level: logger object
+    :return : logger object
     """
     logger = logging.getLogger('splunk_cycle')
     logger.propagate = False  # Prevent the log messages from being duplicated in the python.log file
@@ -105,7 +105,7 @@ def convert_64bit(signed_high, signed_low):
 
 class F5Client():
     """
-        Connects to F5 iControl interface
+    Connects to F5 iControl interface.  Methods allow for short hand.
     """
 
     def __init__(self, user, passwd, host):
@@ -122,15 +122,114 @@ class F5Client():
 
     def set_partition(self, partition):
         """
-            Set active partition for methods.
-            :param partition: F5 partition name.
-            :type partition: str
-            :return: str
+        Set active partition for methods.
+        :param partition: F5 partition name.
+        :type partition: str
+        :return: str
         """
-        activeparition = self.Management.Partition.get_active_partition()
+        activeparition = self.f5.Management.Partition.get_active_partition()
         if partition != activeparition:
-            self.Management.Partition.set_active_partition(partition)
-        return self.Management.Partition.get_active_partition()
+            self.f5.Management.Partition.set_active_partition(partition)
+        return self.f5.Management.Partition.get_active_partition()
+
+    def pool_list(self, pools=None):
+        """
+        Splits pools by comma, if None gets all F5 Pools
+        :param pools: comma separated string for each pool
+        :type pools: string
+        :return: list
+        """
+        if pools:
+            self.plist = pools.split(',')
+        else:
+            self.plist = self.f5.LocalLB.Pool.get_list()
+
+    def pool_status(self, pools=None):
+        """
+        Returns Pool status
+        :param pools: F5 Pools
+        :type pools: list
+        :return: list
+        """
+        pools = pools if pools else self.plist
+        if pools:
+            self.pstatus = self.f5.LocalLB.Pool.get_object_status(pools)
+
+    def members(self, pools=None):
+        """
+        Returns list of all pool members
+        :param pools: F5 Pools
+        :type pools: list
+        :return: list
+        """
+        pools = pools if pools else self.plist
+        if pools:
+            self.pmembers = self.f5.LocalLB.Pool.get_member_v2(pools)
+
+    def member_status(self, pools=None):
+        """
+        Returns list of all pool members status
+        :param pools: F5 Pools
+        :type pools: list
+        :return: list
+        """
+        pools = pools if pools else self.plist
+        if pools:
+            self.pmember_status = self.f5.LocalLB.PoolMember.get_object_status(pools)
+
+    def member_stats(self, pools=None):
+        """
+        Returns list of all pool members statistics
+        :param pools: F5 Pools
+        :type pools: list
+        :return: list
+        """
+        pools = pools if pools else self.plist
+        if pools:
+            self.pmember_stats = self.f5.LocalLB.Pool.get_all_member_statistics(pools)
+
+    def vserver_list(self, vservers=None):
+        """
+        Splits vservers by comma, if None gets all F5 virtual servers
+        :param vservers: comma separated string for each virtual server
+        :type vservers: string
+        :return: list
+        """
+        self.vlist = vservers.split(',') if vservers else self.f5.LocalLB.VirtualServer.get_list()
+
+    def vserver_dest(self, vservers=None):
+        """
+        Returns virtual servers ip and port
+        :param vservers: virtual servers
+        :type vservers: list
+        :return: list
+        """
+        vservers = vservers if vservers else self.vlist
+        if vservers:
+            self.vdests = self.f5.LocalLB.VirtualServer.get_destination_v2(vservers)
+
+    def vserver_pool(self, vservers=None):
+        """
+        Returns virtual servers default pool association
+        :param vservers: virtual servers
+        :type vservers: list
+        :return: list
+        """
+        vservers = vservers if vservers else self.vlist
+        if vservers:
+            self.vpools = self.f5.LocalLB.VirtualServer.get_default_pool_name(vservers)
+
+    def vserver_stats(self, vservers=None):
+        """
+        Returns virtual servers statistics
+        :param vservers: virtual servers
+        :type vservers: list
+        :return: list
+        """
+        vservers = vservers if vservers else self.vlist
+        if vservers:
+            self.vstats = self.f5.LocalLB.VirtualServer.get_statistics(vservers)
+
 
 
 @Configuration()
