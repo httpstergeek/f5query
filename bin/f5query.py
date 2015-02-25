@@ -175,11 +175,6 @@ class F5Client():
             username=user,
             password=passwd
         )
-        self.Management = self.f5.Management
-        self.Pool = self.f5.LocalLB.Pool
-        self.PoolMember = self.f5.LocalLB.PoolMember
-        self.VirtualAddressV2 = self.f5.LocalLB.VirtualAddressV2
-        self.VirtualServer = self.f5.LocalLB.VirtualServer
         self.plist = None
         self.pstatus = None
         self.pmembers = None
@@ -404,7 +399,7 @@ class f5QueryCommand(GeneratingCommand):
          **Description:** Flag that only pool names ''',
         require=False)
 
-    virtualServers = Option(
+    vservers = Option(
         doc='''**Syntax:** **virtualServers=***<string>*
          **Description:** Comma separated list virtual Servers.''',
         require=False)
@@ -459,7 +454,7 @@ class f5QueryCommand(GeneratingCommand):
                 yield pool
 
         # if self.virtualServer is define get virtual Server information
-        if isinstance(self.virtualServers, str):
+        if isinstance(self.vservers, str):
             #virtualserverlist = f5.VirtualServer.get_list() if self.virtualServers.lower() == 'all' else self.virtualServers.split(',')
             #virtualserverdestination = f5.VirtualServer.get_destination_v2(virtualserverlist)
             #virtualserverpool = f5.VirtualServer.get_default_pool_name(virtualserverlist)
