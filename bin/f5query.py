@@ -144,38 +144,6 @@ def pools_output(pools, poolstatuses, members=None, membersstatuses=None, poolst
             poolinfo['_raw'] = tojson(poolinfo)
             yield poolinfo
 
-def vserver_output(virtualServers, virtualserverdestination, virtualserverpool, virtualserverstats=None):
-    timestamp = time.time()
-    timeoffset = (time.mktime(time.localtime()) - time.mktime(time.gmtime()))
-    if virtualServers:
-        for n, server in enumerate(virtualServers):
-            vserverinfo = dict()
-            vserverinfo['_time'] = timestamp
-            partition, vAddress = virtualserverdestination[n]['address'].strip('/').split('/')
-            vpartition, vServer = server.strip('/').split('/')
-            if virtualserverpool[n] != '':
-                pool_partition, pool = virtualserverpool[n].strip('/').split('/')
-                vserverinfo['pool_partition'] = pool_partition
-                vserverinfo['pool_name'] = pool
-            vserverinfo['virtual_server_name'] = vServer
-            vserverinfo['virtual_address'] = vAddress
-            vserverinfo['virtual_server_partition'] = partition
-            if virtualserverstats:
-                stattime = virtualserverstats['time_stamp']
-                time_struct = datetime(stattime['year'], stattime['month'], stattime['day'], stattime['hour'],
-                                       stattime['second']).timetuple()
-                vserverinfo['_time'] = time.mktime(time_struct) + timeoffset
-                vserverinfo['virtual_sever_protocol'] = virtualserverstats['statistics'][n]['virtual_server'][
-                    'protocol']
-                vserverinfo['virtual_sever_port'] = virtualserverstats['statistics'][n]['virtual_server']['port']
-                for stats in virtualserverstats['statistics'][n]['statistics']:
-                    vserverinfo[stats['type'].replace('STATISTIC_', 'virtual_server_').lower()] = convert_64bit(
-                        stats['value']['high'],
-                        stats['value']['low'])
-
-            vserverinfo['_raw'] = tojson(vserverinfo)
-            yield vserverinfo
-
 
 class Threads(threading.Thread):
     """
@@ -255,7 +223,7 @@ class F5Client():
         if pools:
             self.pstatus = self.f5.LocalLB.Pool.get_object_status(pools)
 
-    def members(self, pools=None):
+    def pool_members(self, pools=None):
         """
         Returns list of all pool members
         :param pools: F5 Pools
@@ -266,7 +234,7 @@ class F5Client():
         if pools:
             self.pmembers = self.f5.LocalLB.Pool.get_member_v2(pools)
 
-    def member_status(self, pools=None):
+    def pool_member_status(self, pools=None):
         """
         Returns list of all pool members status
         :param pools: F5 Pools
@@ -277,7 +245,7 @@ class F5Client():
         if pools:
             self.pmember_status = self.f5.LocalLB.PoolMember.get_object_status(pools)
 
-    def member_stats(self, pools=None):
+    def pool_member_stats(self, pools=None):
         """
         Returns list of all pool members statistics
         :param pools: F5 Pools
@@ -330,7 +298,77 @@ class F5Client():
         if vservers:
             self.vstats = self.f5.LocalLB.VirtualServer.get_statistics(vservers)
 
+    def pools_output(self, members=None, membersstatuses=None, poolstatistics=None):
+        timestamp = time.time()
+        timeoffset = (time.mktime(time.localtime()) - time.mktime(time.gmtime()))
+        for n, pool in enumerate(self.plist):
+            partition, pool = pool.strip('/').split('/')
+            if self.pmembers:
+                for i, member in enumerate(self.pmembers[n]):
+                    poolinfo = dict()
+                    poolinfo['_time'] = timestamp
+                    poolinfo['pool_partition'] = partition
+                    poolinfo['pool_name'] = pool
+                    xpool, poolinfo['pool_member'] = member['address'].strip('/').split('/')
+                    if self.pmember_status:
+                        poolinfo['pool_member_address'] = self.pmember_status[n][i]['member']['address']
+                        poolinfo['pool_member_port'] = self.pmember_status[n][i]['member']['port']
+                        poolinfo['pool_member_availability_status'] = self.pmember_status[n][i]['object_status']['availability_status']
+                        poolinfo['pool_member_enabled_status'] = self.pmember_status[n][i]['object_status']['enabled_status']
+                    if self.pmember_stats:
+                        for stats in self.pmember_stats[n]['statistics'][i]['statistics']:
+                            poolinfo[stats['type'].replace('STATISTIC_', 'pool_member_').lower()] = convert_64bit(
+                                stats['value']['high'],
+                                stats['value']['low'])
+                            stattime = self.pmember_stats[n]['time_stamp']
+                            time_struct = datetime(stattime['year'], stattime['month'], stattime['day'],
+                                                   stattime['hour'], stattime['second']).timetuple()
+                            poolinfo['_time'] = time.mktime(time_struct) + timeoffset
+                    poolinfo['pool_availability_status'] = self.pstatus[n]['availability_status']
+                    poolinfo['pool_enabled_status'] = self.pstatus[n]['enabled_status']
+                    poolinfo['_raw'] = tojson(poolinfo)
+                    yield poolinfo
+            else:
+                poolinfo = dict()
+                poolinfo['_time'] = timestamp
+                poolinfo['partition'] = partition
+                poolinfo['pool_name'] = pool
+                poolinfo['pool_availability_status'] = self.pstatus[n]['availability_status']
+                poolinfo['pool_enabled_status'] = self.pstatus[n]['enabled_status']
+                poolinfo['_raw'] = tojson(poolinfo)
+                yield poolinfo
 
+    def vserver_output(self):
+        timestamp = time.time()
+        timeoffset = (time.mktime(time.localtime()) - time.mktime(time.gmtime()))
+        if self.vlist:
+            for n, server in enumerate(self.vlist):
+                vserverinfo = dict()
+                vserverinfo['_time'] = timestamp
+                partition, vAddress = self.vdests[n]['address'].strip('/').split('/')
+                vpartition, vServer = server.strip('/').split('/')
+                if self.vpools[n] != '':
+                    pool_partition, pool = self.vpools[n].strip('/').split('/')
+                    vserverinfo['pool_partition'] = pool_partition
+                    vserverinfo['pool_name'] = pool
+                vserverinfo['virtual_server_name'] = vServer
+                vserverinfo['virtual_address'] = vAddress
+                vserverinfo['virtual_server_partition'] = partition
+                if self.vstats:
+                    stattime = self.vstats['time_stamp']
+                    time_struct = datetime(stattime['year'], stattime['month'], stattime['day'], stattime['hour'],
+                                           stattime['second']).timetuple()
+                    vserverinfo['_time'] = time.mktime(time_struct) + timeoffset
+                    vserverinfo['virtual_sever_protocol'] = self.vstats['statistics'][n]['virtual_server'][
+                        'protocol']
+                    vserverinfo['virtual_sever_port'] = self.vstats['statistics'][n]['virtual_server']['port']
+                    for stats in self.vstats['statistics'][n]['statistics']:
+                        vserverinfo[stats['type'].replace('STATISTIC_', 'virtual_server_').lower()] = convert_64bit(
+                            stats['value']['high'],
+                            stats['value']['low'])
+
+                vserverinfo['_raw'] = tojson(vserverinfo)
+                yield vserverinfo
 
 @Configuration()
 class f5QueryCommand(GeneratingCommand):
@@ -404,24 +442,33 @@ class f5QueryCommand(GeneratingCommand):
         # find GMT Offset from local time
         timeoffset = (time.mktime(time.localtime()) - time.mktime(time.gmtime()))
         if self.pools:
-            self.logger.debug('f5QueryCommand: %s' % 'Getting Pool List')
-            poollist = f5.Pool.get_list() if self.pools.lower() == 'all' else self.pools.split(',')
-            poolonly = True if self.poolOnly == 'True' else False
-            self.logger.debug('f5QueryCommand: %s' % 'Getting Pool List')
-            poolstatuses = f5.Pool.get_object_status(poollist)
-            members = f5.Pool.get_member_v2(poollist) if not poolonly else ''
-            membersstatuses = f5.PoolMember.get_object_status(poollist) if not poolonly else False
-            poolstatistics = f5.Pool.get_all_member_statistics(poollist) if getstats else False
-            for pool in pools_output(poollist, poolstatuses):
+            #self.logger.debug('f5QueryCommand: %s' % 'Getting Pool List')
+            #poollist = f5.Pool.get_list() if self.pools.lower() == 'all' else self.pools.split(',')
+            #poolonly = True if self.poolOnly == 'True' else False
+            #self.logger.debug('f5QueryCommand: %s' % 'Getting Pool List')
+            #poolstatuses = f5.Pool.get_object_status(poollist)
+            #members = f5.Pool.get_member_v2(poollist) if not poolonly else ''
+            #membersstatuses = f5.PoolMember.get_object_status(poollist) if not poolonly else False
+            #poolstatistics = f5.Pool.get_all_member_statistics(poollist) if getstats else False
+            f5.pool_list()
+            f5.pool_status()
+            f5.pool_members()
+            f5.pool_member_status()
+            f5.pool_member_stats()
+            for pool in f5.pools_output():
                 yield pool
 
         # if self.virtualServer is define get virtual Server information
         if isinstance(self.virtualServers, str):
-            virtualserverlist = f5.VirtualServer.get_list() if self.virtualServers.lower() == 'all' else self.virtualServers.split(',')
-            virtualserverdestination = f5.VirtualServer.get_destination_v2(virtualserverlist)
-            virtualserverpool = f5.VirtualServer.get_default_pool_name(virtualserverlist)
-            virtualserverstats = f5.VirtualServer.get_statistics(virtualserverlist) if getstats else False
-            for vserver in vserver_output(virtualserverlist, virtualserverdestination, virtualserverpool, virtualserverstats=virtualserverstats):
+            #virtualserverlist = f5.VirtualServer.get_list() if self.virtualServers.lower() == 'all' else self.virtualServers.split(',')
+            #virtualserverdestination = f5.VirtualServer.get_destination_v2(virtualserverlist)
+            #virtualserverpool = f5.VirtualServer.get_default_pool_name(virtualserverlist)
+            #virtualserverstats = f5.VirtualServer.get_statistics(virtualserverlist) if getstats else None
+            f5.vserver_list()
+            f5.vserver_dest()
+            f5.vserver_pool()
+            f5.vserver_stats()
+            for vserver in f5.vserver_output():
                 yield vserver
 
 dispatch(f5QueryCommand, sys.argv, sys.stdin, sys.stdout, __name__)
