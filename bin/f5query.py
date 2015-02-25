@@ -3,7 +3,7 @@ import logging
 import logging.handlers
 import sys
 import json
-import copy
+import threading
 from datetime import datetime
 import time
 from platform import system
@@ -133,7 +133,7 @@ def pools_output(pools, poolstatuses, members=None, membersstatuses=None, poolst
                 poolinfo['pool_availability_status'] = poolstatuses[n]['availability_status']
                 poolinfo['pool_enabled_status'] = poolstatuses[n]['enabled_status']
                 poolinfo['_raw'] = tojson(poolinfo)
-                output.append(poolinfo)
+                yield poolinfo
         else:
             poolinfo = dict()
             poolinfo['_time'] = timestamp
@@ -142,8 +142,7 @@ def pools_output(pools, poolstatuses, members=None, membersstatuses=None, poolst
             poolinfo['pool_availability_status'] = poolstatuses[n]['availability_status']
             poolinfo['pool_enabled_status'] = poolstatuses[n]['enabled_status']
             poolinfo['_raw'] = tojson(poolinfo)
-            output.append(poolinfo)
-    return output
+            yield poolinfo
 
 def vserver_output(virtualServers, virtualserverdestination, virtualserverpool, virtualserverstats=None):
     timestamp = time.time()
@@ -177,6 +176,25 @@ def vserver_output(virtualServers, virtualserverdestination, virtualserverpool, 
             vserverinfo['_raw'] = tojson(vserverinfo)
             yield vserverinfo
 
+
+class Threads(threading.Thread):
+    """
+    Simple Threading Class
+    """
+    def __init__(self):
+        self.jobs = list()
+
+    def run(self, target=None, args=None):
+        """
+        starts thread and adds to job list
+        :param target: function or method.
+        :type target: object
+        :return: None
+        """
+        if target:
+            job = threading.Thread(target=target, args=args)
+            self.jobs.append(job)
+            job.start()
 
 class F5Client():
     """
@@ -298,7 +316,6 @@ class f5QueryCommand(GeneratingCommand):
             virtualserverdestination = f5.VirtualServer.get_destination_v2(virtualserverlist)
             virtualserverpool = f5.VirtualServer.get_default_pool_name(virtualserverlist)
             virtualserverstats = f5.VirtualServer.get_statistics(virtualserverlist) if getstats else False
-            vserver_output(virtualserverlist, virtualserverdestination, virtualserverpool, virtualserverstats=virtualserverstats)
             for vserver in vserver_output(virtualserverlist, virtualserverdestination, virtualserverpool, virtualserverstats=virtualserverstats):
                 yield vserver
 
