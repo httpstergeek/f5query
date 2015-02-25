@@ -212,18 +212,124 @@ class F5Client():
         self.PoolMember = self.f5.LocalLB.PoolMember
         self.VirtualAddressV2 = self.f5.LocalLB.VirtualAddressV2
         self.VirtualServer = self.f5.LocalLB.VirtualServer
+        self.plist = None
+        self.pstatus = None
+        self.pmembers = None
+        self.pmember_status = None
+        self.pmember_stats = None
+        self.vlist = None
+        self.vservers = None
+        self.vdests = None
+        self.vpools = None
+        self.vstats = None
 
     def set_partition(self, partition):
         """
-            Set active partition for methods.
-            :param partition: F5 partition name.
-            :type partition: str
-            :return: str
+        Set active partition for methods.
+        :param partition: F5 partition name.
+        :type partition: str
+        :return: str
         """
-        activeparition = self.Management.Partition.get_active_partition()
+        activeparition = self.f5.Management.Partition.get_active_partition()
         if partition != activeparition:
-            self.Management.Partition.set_active_partition(partition)
-        return self.Management.Partition.get_active_partition()
+            self.f5.Management.Partition.set_active_partition(partition)
+        return self.f5.Management.Partition.get_active_partition()
+
+    def pool_list(self, pools=None):
+        """
+        Splits pools by comma, if None gets all F5 Pools
+        :param pools: comma separated string for each pool
+        :type pools: string
+        :return: list
+        """
+        self.plist = pools.split(',') if pools else self.f5.LocalLB.Pool.get_list()
+
+    def pool_status(self, pools=None):
+        """
+        Returns Pool status
+        :param pools: F5 Pools
+        :type pools: list
+        :return: list
+        """
+        pools = pools if pools else self.plist
+        if pools:
+            self.pstatus = self.f5.LocalLB.Pool.get_object_status(pools)
+
+    def members(self, pools=None):
+        """
+        Returns list of all pool members
+        :param pools: F5 Pools
+        :type pools: list
+        :return: list
+        """
+        pools = pools if pools else self.plist
+        if pools:
+            self.pmembers = self.f5.LocalLB.Pool.get_member_v2(pools)
+
+    def member_status(self, pools=None):
+        """
+        Returns list of all pool members status
+        :param pools: F5 Pools
+        :type pools: list
+        :return: list
+        """
+        pools = pools if pools else self.plist
+        if pools:
+            self.pmember_status = self.f5.LocalLB.PoolMember.get_object_status(pools)
+
+    def member_stats(self, pools=None):
+        """
+        Returns list of all pool members statistics
+        :param pools: F5 Pools
+        :type pools: list
+        :return: list
+        """
+        pools = pools if pools else self.plist
+        if pools:
+            self.pmember_stats = self.f5.LocalLB.Pool.get_all_member_statistics(pools)
+
+    def vserver_list(self, vservers=None):
+        """
+        Splits vservers by comma, if None gets all F5 virtual servers
+        :param vservers: comma separated string for each virtual server
+        :type vservers: string
+        :return: list
+        """
+        self.vlist = vservers.split(',') if vservers else self.f5.LocalLB.VirtualServer.get_list()
+
+    def vserver_dest(self, vservers=None):
+        """
+        Returns virtual servers ip and port
+        :param vservers: virtual servers
+        :type vservers: list
+        :return: list
+        """
+        vservers = vservers if vservers else self.vlist
+        if vservers:
+            self.vdests = self.f5.LocalLB.VirtualServer.get_destination_v2(vservers)
+
+    def vserver_pool(self, vservers=None):
+        """
+        Returns virtual servers default pool association
+        :param vservers: virtual servers
+        :type vservers: list
+        :return: list
+        """
+        vservers = vservers if vservers else self.vlist
+        if vservers:
+            self.vpools = self.f5.LocalLB.VirtualServer.get_default_pool_name(vservers)
+
+    def vserver_stats(self, vservers=None):
+        """
+        Returns virtual servers statistics
+        :param vservers: virtual servers
+        :type vservers: list
+        :return: list
+        """
+        vservers = vservers if vservers else self.vlist
+        if vservers:
+            self.vstats = self.f5.LocalLB.VirtualServer.get_statistics(vservers)
+
 
 
 @Configuration()
@@ -297,7 +403,7 @@ class f5QueryCommand(GeneratingCommand):
         getstats = True if self.getStats == 'true' else False
         # find GMT Offset from local time
         timeoffset = (time.mktime(time.localtime()) - time.mktime(time.gmtime()))
-        if isinstance(self.pools, str):
+        if self.pools:
             self.logger.debug('f5QueryCommand: %s' % 'Getting Pool List')
             poollist = f5.Pool.get_list() if self.pools.lower() == 'all' else self.pools.split(',')
             poolonly = True if self.poolOnly == 'True' else False
@@ -306,7 +412,6 @@ class f5QueryCommand(GeneratingCommand):
             members = f5.Pool.get_member_v2(poollist) if not poolonly else ''
             membersstatuses = f5.PoolMember.get_object_status(poollist) if not poolonly else False
             poolstatistics = f5.Pool.get_all_member_statistics(poollist) if getstats else False
-            timestamp = time.time()
             for pool in pools_output(poollist, poolstatuses):
                 yield pool
 
