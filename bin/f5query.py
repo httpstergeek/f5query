@@ -3,6 +3,7 @@ import logging
 import logging.handlers
 import sys
 import json
+import copy
 from datetime import datetime
 import time
 from platform import system
@@ -101,6 +102,80 @@ def convert_64bit(signed_high, signed_low):
     unsigned_value = long((signed_high << 32) | signed_low)
     assert (unsigned_value >= 0)
     return unsigned_value
+
+def pools_output(pools, poolstatuses, members=None, membersstatuses=None, poolstatistics=None):
+    timestamp = time.time()
+    output = list()
+    timeoffset = (time.mktime(time.localtime()) - time.mktime(time.gmtime()))
+    for n, pool in enumerate(pools):
+        partition, pool = pool.strip('/').split('/')
+        if members:
+            for i, member in enumerate(members[n]):
+                poolinfo = dict()
+                poolinfo['_time'] = timestamp
+                poolinfo['pool_partition'] = partition
+                poolinfo['pool_name'] = pool
+                xpool, poolinfo['pool_member'] = member['address'].strip('/').split('/')
+                if membersstatuses:
+                    poolinfo['pool_member_address'] = membersstatuses[n][i]['member']['address']
+                    poolinfo['pool_member_port'] = membersstatuses[n][i]['member']['port']
+                    poolinfo['pool_member_availability_status'] = membersstatuses[n][i]['object_status']['availability_status']
+                    poolinfo['pool_member_enabled_status'] = membersstatuses[n][i]['object_status']['enabled_status']
+                if poolstatistics:
+                    for stats in poolstatistics[n]['statistics'][i]['statistics']:
+                        poolinfo[stats['type'].replace('STATISTIC_', 'pool_member_').lower()] = convert_64bit(
+                            stats['value']['high'],
+                            stats['value']['low'])
+                        stattime = poolstatistics[n]['time_stamp']
+                        time_struct = datetime(stattime['year'], stattime['month'], stattime['day'],
+                                               stattime['hour'], stattime['second']).timetuple()
+                        poolinfo['_time'] = time.mktime(time_struct) + timeoffset
+                poolinfo['pool_availability_status'] = poolstatuses[n]['availability_status']
+                poolinfo['pool_enabled_status'] = poolstatuses[n]['enabled_status']
+                poolinfo['_raw'] = tojson(poolinfo)
+                output.append(poolinfo)
+        else:
+            poolinfo = dict()
+            poolinfo['_time'] = timestamp
+            poolinfo['partition'] = partition
+            poolinfo['pool_name'] = pool
+            poolinfo['pool_availability_status'] = poolstatuses[n]['availability_status']
+            poolinfo['pool_enabled_status'] = poolstatuses[n]['enabled_status']
+            poolinfo['_raw'] = tojson(poolinfo)
+            output.append(poolinfo)
+    return output
+
+def vserver_output(virtualServers, virtualserverdestination, virtualserverpool, virtualserverstats=None):
+    timestamp = time.time()
+    timeoffset = (time.mktime(time.localtime()) - time.mktime(time.gmtime()))
+    if virtualServers:
+        for n, server in enumerate(virtualServers):
+            vserverinfo = dict()
+            vserverinfo['_time'] = timestamp
+            partition, vAddress = virtualserverdestination[n]['address'].strip('/').split('/')
+            vpartition, vServer = server.strip('/').split('/')
+            if virtualserverpool[n] != '':
+                pool_partition, pool = virtualserverpool[n].strip('/').split('/')
+                vserverinfo['pool_partition'] = pool_partition
+                vserverinfo['pool_name'] = pool
+            vserverinfo['virtual_server_name'] = vServer
+            vserverinfo['virtual_address'] = vAddress
+            vserverinfo['virtual_server_partition'] = partition
+            if virtualserverstats:
+                stattime = virtualserverstats['time_stamp']
+                time_struct = datetime(stattime['year'], stattime['month'], stattime['day'], stattime['hour'],
+                                       stattime['second']).timetuple()
+                vserverinfo['_time'] = time.mktime(time_struct) + timeoffset
+                vserverinfo['virtual_sever_protocol'] = virtualserverstats['statistics'][n]['virtual_server'][
+                    'protocol']
+                vserverinfo['virtual_sever_port'] = virtualserverstats['statistics'][n]['virtual_server']['port']
+                for stats in virtualserverstats['statistics'][n]['statistics']:
+                    vserverinfo[stats['type'].replace('STATISTIC_', 'virtual_server_').lower()] = convert_64bit(
+                        stats['value']['high'],
+                        stats['value']['low'])
+
+            vserverinfo['_raw'] = tojson(vserverinfo)
+            yield vserverinfo
 
 
 class F5Client():
@@ -201,7 +276,7 @@ class f5QueryCommand(GeneratingCommand):
             self.logger.debug('f5QueryCommand: %s, %s' % e, self)
             exit(1)
 
-        getstats = True if self.getStats == 'True' else False
+        getstats = True if self.getStats == 'true' else False
         # find GMT Offset from local time
         timeoffset = (time.mktime(time.localtime()) - time.mktime(time.gmtime()))
         if isinstance(self.pools, str):
@@ -214,44 +289,8 @@ class f5QueryCommand(GeneratingCommand):
             membersstatuses = f5.PoolMember.get_object_status(poollist) if not poolonly else False
             poolstatistics = f5.Pool.get_all_member_statistics(poollist) if getstats else False
             timestamp = time.time()
-
-            for n, pool in enumerate(poollist):
-                partition, pool = pool.strip('/').split('/')
-                if not poolonly:
-                    for i, member in enumerate(members[n]):
-                        poolinfo = dict()
-                        poolinfo['_time'] = timestamp
-                        poolinfo['pool_partition'] = partition
-                        poolinfo['pool_name'] = pool
-                        xpool, poolinfo['pool_member'] = member['address'].strip('/').split('/')
-                        poolinfo['pool_member_address'] = membersstatuses[n][i]['member']['address']
-                        poolinfo['pool_member_port'] = membersstatuses[n][i]['member']['port']
-                        poolinfo['pool_member_availability_status'] = membersstatuses[n][i]['object_status'][
-                            'availability_status']
-                        poolinfo['pool_member_enabled_status'] = membersstatuses[n][i]['object_status'][
-                            'enabled_status']
-                        if getstats:
-                            for stats in poolstatistics[n]['statistics'][i]['statistics']:
-                                poolinfo[stats['type'].replace('STATISTIC_', 'pool_member_').lower()] = convert_64bit(
-                                    stats['value']['high'],
-                                    stats['value']['low'])
-                                stattime = poolstatistics[n]['time_stamp']
-                                time_struct = datetime(stattime['year'], stattime['month'], stattime['day'],
-                                                       stattime['hour'], stattime['second']).timetuple()
-                                poolinfo['_time'] = time.mktime(time_struct) + timeoffset
-                        poolinfo['pool_availability_status'] = poolstatuses[n]['availability_status']
-                        poolinfo['pool_enabled_status'] = poolstatuses[n]['enabled_status']
-                        poolinfo['_raw'] = tojson(poolinfo)
-                        yield poolinfo
-                else:
-                    poolinfo = dict()
-                    poolinfo['_time'] = timestamp
-                    poolinfo['partition'] = partition
-                    poolinfo['pool_name'] = pool
-                    poolinfo['pool_availability_status'] = poolstatuses[n]['availability_status']
-                    poolinfo['pool_enabled_status'] = poolstatuses[n]['enabled_status']
-                    poolinfo['_raw'] = tojson(poolinfo)
-                    yield poolinfo
+            for pool in pools_output(poollist, poolstatuses):
+                yield pool
 
         # if self.virtualServer is define get virtual Server information
         if isinstance(self.virtualServers, str):
@@ -259,33 +298,8 @@ class f5QueryCommand(GeneratingCommand):
             virtualserverdestination = f5.VirtualServer.get_destination_v2(virtualserverlist)
             virtualserverpool = f5.VirtualServer.get_default_pool_name(virtualserverlist)
             virtualserverstats = f5.VirtualServer.get_statistics(virtualserverlist) if getstats else False
-            timestamp = time.time()
-            for n, server in enumerate(virtualserverlist):
-                vserverinfo = dict()
-                vserverinfo['_time'] = timestamp
-                partition, vAddress = virtualserverdestination[n]['address'].strip('/').split('/')
-                vpartition, vServer = server.strip('/').split('/')
-                if virtualserverpool[n] != '':
-                    pool_partition, pool = virtualserverpool[n].strip('/').split('/')
-                    vserverinfo['pool_partition'] = pool_partition
-                    vserverinfo['pool_name'] = pool
-                vserverinfo['virtual_server_name'] = vServer
-                vserverinfo['virtual_address'] = vAddress
-                vserverinfo['virtual_server_partition'] = partition
-                if getstats:
-                    stattime = virtualserverstats['time_stamp']
-                    time_struct = datetime(stattime['year'], stattime['month'], stattime['day'], stattime['hour'],
-                                           stattime['second']).timetuple()
-                    vserverinfo['_time'] = time.mktime(time_struct) + timeoffset
-                    vserverinfo['virtual_sever_protocol'] = virtualserverstats['statistics'][n]['virtual_server'][
-                        'protocol']
-                    vserverinfo['virtual_sever_port'] = virtualserverstats['statistics'][n]['virtual_server']['port']
-                    for stats in virtualserverstats['statistics'][n]['statistics']:
-                        vserverinfo[stats['type'].replace('STATISTIC_', 'virtual_server_').lower()] = convert_64bit(
-                            stats['value']['high'],
-                            stats['value']['low'])
-                vserverinfo['_raw'] = tojson(vserverinfo)
-                yield vserverinfo
-
+            vserver_output(virtualserverlist, virtualserverdestination, virtualserverpool, virtualserverstats=virtualserverstats)
+            for vserver in vserver_output(virtualserverlist, virtualserverdestination, virtualserverpool, virtualserverstats=virtualserverstats):
+                yield vserver
 
 dispatch(f5QueryCommand, sys.argv, sys.stdin, sys.stdout, __name__)
