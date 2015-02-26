@@ -438,11 +438,15 @@ class f5QueryCommand(GeneratingCommand):
 
         if self.pools:
             for pool in f5.pools_output():
+                pool['source'] = 'f5'
+                pool['sourcetype'] = 'icontrol'
                 yield pool
 
         # if self.virtualServer is define get virtual Server information
         if self.vservers:
             for vserver in f5.vserver_output():
+                vserver['source'] = 'f5'
+                vserver['sourcetype'] = 'icontrol'
                 yield vserver
 
 dispatch(f5QueryCommand, sys.argv, sys.stdin, sys.stdout, __name__)
