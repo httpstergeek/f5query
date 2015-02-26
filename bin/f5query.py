@@ -356,7 +356,7 @@ class f5QueryCommand(GeneratingCommand):
 
     .. code-block::
         | f5Query pool="common/splunk_443_pool,common/splunk_80_pool" poolOnly=True partition="common" device="f5.com"
-        | f5Query virtualServers="/Common/trans.mycompany_86_vs','/Common/post.mycompany_81_vs'" getStats=True partition="common" device="f5.com"
+        | f5Query vserver="/Common/trans.mycompany_86_vs','/Common/post.mycompany_81_vs'" getStats=True partition="common" device="f5.com"
 
     """
 
@@ -425,10 +425,10 @@ class f5QueryCommand(GeneratingCommand):
                 f5.pool_list(self.pools)
             f5threads.run(target=f5.pool_status)
             if self.poolOnly != 'true':
-                if self.getStats == 'true':
-                    f5threads.run(target=f5.member_stats)
-                f5threads.run(target=f5.members)
-                f5threads.run(target=f5.member_status)
+                if self.getStats.lower() == 'true':
+                    f5threads.run(target=f5.pool_member_stats)
+                f5threads.run(target=f5.pool_members)
+                f5threads.run(target=f5.pool_member_status)
 
         # waiting for threads to return
         for thread in f5threads.jobs:
