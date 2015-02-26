@@ -33,6 +33,7 @@ for filename in os.listdir(egg_dir):
 import suds
 import bigsuds
 
+SPLUNK_HOME = os.environ.get('SPLUNK_HOME')
 
 def setup_logger(level):
     """
@@ -40,10 +41,11 @@ def setup_logger(level):
         :type level: logger object
         :return : logger object
     """
-    logger = logging.getLogger('splunk_cycle')
+    logger = logging.getLogger('f5query')
     logger.propagate = False  # Prevent the log messages from being duplicated in the python.log file
     logger.setLevel(level)
-    file_handler = logging.handlers.RotatingFileHandler(os.path.join('splunk_cycle.log'), maxBytes=5000000,
+    file_handler = logging.handlers.RotatingFileHandler(os.path.join(SPLUNK_HOME, 'var', 'log', 'splunk', 'f5query.log'),
+                                                        maxBytes=5000000,
                                                         backupCount=5)
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     file_handler.setFormatter(formatter)
