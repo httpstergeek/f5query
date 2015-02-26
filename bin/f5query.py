@@ -103,52 +103,12 @@ def convert_64bit(signed_high, signed_low):
     assert (unsigned_value >= 0)
     return unsigned_value
 
-def pools_output(pools, poolstatuses, members=None, membersstatuses=None, poolstatistics=None):
-    timestamp = time.time()
-    output = list()
-    timeoffset = (time.mktime(time.localtime()) - time.mktime(time.gmtime()))
-    for n, pool in enumerate(pools):
-        partition, pool = pool.strip('/').split('/')
-        if members:
-            for i, member in enumerate(members[n]):
-                poolinfo = dict()
-                poolinfo['_time'] = timestamp
-                poolinfo['pool_partition'] = partition
-                poolinfo['pool_name'] = pool
-                xpool, poolinfo['pool_member'] = member['address'].strip('/').split('/')
-                if membersstatuses:
-                    poolinfo['pool_member_address'] = membersstatuses[n][i]['member']['address']
-                    poolinfo['pool_member_port'] = membersstatuses[n][i]['member']['port']
-                    poolinfo['pool_member_availability_status'] = membersstatuses[n][i]['object_status']['availability_status']
-                    poolinfo['pool_member_enabled_status'] = membersstatuses[n][i]['object_status']['enabled_status']
-                if poolstatistics:
-                    for stats in poolstatistics[n]['statistics'][i]['statistics']:
-                        poolinfo[stats['type'].replace('STATISTIC_', 'pool_member_').lower()] = convert_64bit(
-                            stats['value']['high'],
-                            stats['value']['low'])
-                        stattime = poolstatistics[n]['time_stamp']
-                        time_struct = datetime(stattime['year'], stattime['month'], stattime['day'],
-                                               stattime['hour'], stattime['second']).timetuple()
-                        poolinfo['_time'] = time.mktime(time_struct) + timeoffset
-                poolinfo['pool_availability_status'] = poolstatuses[n]['availability_status']
-                poolinfo['pool_enabled_status'] = poolstatuses[n]['enabled_status']
-                poolinfo['_raw'] = tojson(poolinfo)
-                yield poolinfo
-        else:
-            poolinfo = dict()
-            poolinfo['_time'] = timestamp
-            poolinfo['partition'] = partition
-            poolinfo['pool_name'] = pool
-            poolinfo['pool_availability_status'] = poolstatuses[n]['availability_status']
-            poolinfo['pool_enabled_status'] = poolstatuses[n]['enabled_status']
-            poolinfo['_raw'] = tojson(poolinfo)
-            yield poolinfo
 
-
-class Threads(threading.Thread):
+class Worker(threading.Thread):
     """
     Simple Threading Class
     """
+    # TODO rewrite
     def __init__(self):
         self.jobs = list()
 
@@ -432,7 +392,10 @@ class f5QueryCommand(GeneratingCommand):
         except Exception as e:
             self.logger.debug('f5QueryCommand: %s, %s' % e, self)
             exit(1)
-        f5threads = Threads()
+        # Creating threading object
+        f5threads = Worker()
+
+        # F5 virtual server
         if self.vservers:
             if self.vservers.lower() == 'all':
                 f5.vserver_list()
@@ -442,27 +405,29 @@ class f5QueryCommand(GeneratingCommand):
                 f5threads.run(target=f5.vserver_stats)
             f5threads.run(target=f5.vserver_dest)
             f5threads.run(target=f5.vserver_pool)
+
+        # F5 pool information requests
+        if self.pools:
+            if self.pools.lower() == 'all':
+                f5.pool_list()
+            else:
+                f5.pool_list(self.pools)
+            f5threads.run(target=f5.pool_status)
+            if self.poolOnly != 'true':
+                if self.getStats == 'true':
+                    f5threads.run(target=f5.member_stats)
+                f5threads.run(target=f5.members)
+                f5threads.run(target=f5.member_status)
+
         for thread in f5threads.jobs:
             thread.join()
+
         if self.pools:
-            #self.logger.debug('f5QueryCommand: %s' % 'Getting Pool List')
-            #poollist = f5.Pool.get_list() if self.pools.lower() == 'all' else self.pools.split(',')
-            #poolonly = True if self.poolOnly == 'True' else False
-            #self.logger.debug('f5QueryCommand: %s' % 'Getting Pool List')
-            #poolstatuses = f5.Pool.get_object_status(poollist)
-            #members = f5.Pool.get_member_v2(poollist) if not poolonly else ''
-            #membersstatuses = f5.PoolMember.get_object_status(poollist) if not poolonly else False
-            #poolstatistics = f5.Pool.get_all_member_statistics(poollist) if getstats else False
-            f5.pool_list()
-            f5.pool_status()
-            f5.pool_members()
-            f5.pool_member_status()
-            f5.pool_member_stats()
             for pool in f5.pools_output():
                 yield pool
 
         # if self.virtualServer is define get virtual Server information
-        if isinstance(self.vservers, str):
+        if self.vservers:
             for vserver in f5.vserver_output():
                 yield vserver
 
