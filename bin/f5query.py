@@ -152,7 +152,7 @@ class Threads(threading.Thread):
     def __init__(self):
         self.jobs = list()
 
-    def run(self, target=None, args=None):
+    def run(self, target=None):
         """
         starts thread and adds to job list
         :param target: function or method.
@@ -160,7 +160,7 @@ class Threads(threading.Thread):
         :return: None
         """
         if target:
-            job = threading.Thread(target=target, args=args)
+            job = threading.Thread(target=target)
             self.jobs.append(job)
             job.start()
 
@@ -432,10 +432,18 @@ class f5QueryCommand(GeneratingCommand):
         except Exception as e:
             self.logger.debug('f5QueryCommand: %s, %s' % e, self)
             exit(1)
-
-        getstats = True if self.getStats == 'true' else False
-        # find GMT Offset from local time
-        timeoffset = (time.mktime(time.localtime()) - time.mktime(time.gmtime()))
+        f5threads = Threads()
+        if self.vservers:
+            if self.vservers.lower() == 'all':
+                f5.vserver_list()
+            else:
+                f5.vserver_list(self.vservers)
+            if self.getStats:
+                f5threads.run(target=f5.vserver_stats)
+            f5threads.run(target=f5.vserver_dest)
+            f5threads.run(target=f5.vserver_pool)
+        for thread in f5threads.jobs:
+            thread.join()
         if self.pools:
             #self.logger.debug('f5QueryCommand: %s' % 'Getting Pool List')
             #poollist = f5.Pool.get_list() if self.pools.lower() == 'all' else self.pools.split(',')
@@ -455,14 +463,6 @@ class f5QueryCommand(GeneratingCommand):
 
         # if self.virtualServer is define get virtual Server information
         if isinstance(self.vservers, str):
-            #virtualserverlist = f5.VirtualServer.get_list() if self.virtualServers.lower() == 'all' else self.virtualServers.split(',')
-            #virtualserverdestination = f5.VirtualServer.get_destination_v2(virtualserverlist)
-            #virtualserverpool = f5.VirtualServer.get_default_pool_name(virtualserverlist)
-            #virtualserverstats = f5.VirtualServer.get_statistics(virtualserverlist) if getstats else None
-            f5.vserver_list()
-            f5.vserver_dest()
-            f5.vserver_pool()
-            f5.vserver_stats()
             for vserver in f5.vserver_output():
                 yield vserver
 
