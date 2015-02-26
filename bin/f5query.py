@@ -1,3 +1,5 @@
+__author__ = 'berniem'
+
 import os
 import logging
 import logging.handlers
@@ -108,7 +110,7 @@ class Worker(threading.Thread):
     """
     Simple Threading Class
     """
-    # TODO rewrite
+    # TODO rewrite to use daemon and exception handling
     def __init__(self):
         self.jobs = list()
 
@@ -123,6 +125,15 @@ class Worker(threading.Thread):
             job = threading.Thread(target=target)
             self.jobs.append(job)
             job.start()
+
+
+class ThreadPool:
+    """
+    Pool of threads consuming tasks from a queue
+    """
+    # TODO add add_task and wait_completion methods
+    pass
+
 
 class F5Client():
     """
@@ -419,6 +430,7 @@ class f5QueryCommand(GeneratingCommand):
                 f5threads.run(target=f5.members)
                 f5threads.run(target=f5.member_status)
 
+        # waiting for threads to return
         for thread in f5threads.jobs:
             thread.join()
 
