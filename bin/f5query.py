@@ -358,7 +358,7 @@ class f5QueryCommand(GeneratingCommand):
 
     .. code-block::
         | f5Query pool="common/splunk_443_pool,common/splunk_80_pool" poolOnly=True partition="common" device="f5.com"
-        | f5Query vserver="/Common/trans.mycompany_86_vs','/Common/post.mycompany_81_vs'" getStats=True partition="common" device="f5.com"
+        | f5Query vserver="/Common/trans.mycompany_86_vs','/Common/post.mycompany_81_vs'" stats=True partition="common" device="f5.com"
 
     """
 
@@ -377,8 +377,8 @@ class f5QueryCommand(GeneratingCommand):
          **Description:** Comma separated list virtual Servers.''',
         require=False)
 
-    getStats = Option(
-        doc='''**Syntax:** **getStats=***boolean*
+    stats = Option(
+        doc='''**Syntax:** **stats=***boolean*
          **Description:** Set get stats flag. default False. ''',
         require=False)
 
@@ -414,7 +414,7 @@ class f5QueryCommand(GeneratingCommand):
                 f5.vserver_list()
             else:
                 f5.vserver_list(self.vservers)
-            if self.getStats:
+            if self.stats:
                 f5threads.run(target=f5.vserver_stats)
             f5threads.run(target=f5.vserver_dest)
             f5threads.run(target=f5.vserver_pool)
@@ -427,7 +427,7 @@ class f5QueryCommand(GeneratingCommand):
                 f5.pool_list(self.pools)
             f5threads.run(target=f5.pool_status)
             if self.poolOnly != 'true':
-                if self.getStats.lower() == 'true':
+                if self.stats.lower() == 'true':
                     f5threads.run(target=f5.pool_member_stats)
                 f5threads.run(target=f5.pool_members)
                 f5threads.run(target=f5.pool_member_status)
