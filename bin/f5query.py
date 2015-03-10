@@ -11,7 +11,7 @@ import time
 from platform import system
 from splunk.clilib import cli_common as cli
 from splunklib.searchcommands import \
-    dispatch, GeneratingCommand, Configuration, Option, validators
+    dispatch, GeneratingCommand, Configuration, Option
 
 platform = system().lower()
 
