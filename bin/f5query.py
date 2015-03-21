@@ -450,8 +450,10 @@ class f5QueryCommand(GeneratingCommand):
             else:
                 f5.pool_list(self.pools)
             f5threads.run(target=f5.pool_status)
-            if self.poolOnly != 'true':
-                if self.stats.lower() == 'true':
+            poolOnly = self.poolOnly.lower() if self.poolOnly else self.poolOnly
+            if poolOnly != 'true':
+                stats = self.stats.lower() if self.stats else self.stats
+                if stats == 'true':
                     f5threads.run(target=f5.pool_member_stats)
                 f5threads.run(target=f5.pool_members)
                 f5threads.run(target=f5.pool_member_status)
