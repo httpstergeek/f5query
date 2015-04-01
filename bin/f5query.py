@@ -452,6 +452,9 @@ class f5QueryCommand(GeneratingCommand):
         except Exception as e:
             self.logger.debug('f5QueryCommand: %s, %s' % e, self)
             exit(1)
+        if self.partition:
+            f5.set_partition(self.partition)
+
         # Creating threading object
         f5threads = Worker()
 
