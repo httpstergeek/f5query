@@ -52,7 +52,7 @@ Example Command
 
 `| f5Query pool="common/splunk_443_pool,common/splunk_80_pool" poolOnly=True partition="common" device="f5.com"
     OR
-`| f5Query virtualServers="/Common/trans.mycompany_86_vs,/Common/post.mycompany_81_vs" getStats=True partition="common" device="f5.com"
+`| f5Query vservers="/Common/trans.mycompany_86_vs,/Common/post.mycompany_81_vs" stats=True partition="common" device="f5.com"
 
 Recommendations
 ---------

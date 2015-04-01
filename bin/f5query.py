@@ -1,4 +1,28 @@
-__author__ = 'berniem'
+# encoding: utf-8
+# Author: Bernardo Macias <bmacias@httpstergeek.com>
+#
+#
+# All rights reserved
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+__author__ = 'Bernardo Macias '
+__credits__ = ['Bernardo Macias']
+__license__ = "ASF"
+__version__ = "2.0"
+__maintainer__ = "Bernardo Macias"
+__email__ = 'bmacias@httpstergeek.com'
+__status__ = 'Production'
 
 import os
 import logging
@@ -11,7 +35,7 @@ import time
 from platform import system
 from splunk.clilib import cli_common as cli
 from splunklib.searchcommands import \
-    dispatch, GeneratingCommand, Configuration, Option, validators
+    dispatch, GeneratingCommand, Configuration, Option
 
 platform = system().lower()
 
@@ -33,6 +57,7 @@ for filename in os.listdir(egg_dir):
 import suds
 import bigsuds
 
+SPLUNK_HOME = os.environ.get('SPLUNK_HOME')
 
 def setup_logger(level):
     """
@@ -40,10 +65,11 @@ def setup_logger(level):
     :type level: logger object
     :return : logger object
     """
-    logger = logging.getLogger('splunk_cycle')
+    logger = logging.getLogger('f5query')
     logger.propagate = False  # Prevent the log messages from being duplicated in the python.log file
     logger.setLevel(level)
-    file_handler = logging.handlers.RotatingFileHandler(os.path.join('splunk_cycle.log'), maxBytes=5000000,
+    file_handler = logging.handlers.RotatingFileHandler(os.path.join(SPLUNK_HOME, 'var', 'log', 'splunk', 'f5query.log'),
+                                                        maxBytes=5000000,
                                                         backupCount=5)
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     file_handler.setFormatter(formatter)
@@ -379,7 +405,7 @@ class f5QueryCommand(GeneratingCommand):
 
     .. code-block::
         | f5Query pool="common/splunk_443_pool,common/splunk_80_pool" poolOnly=True partition="common" device="f5.com"
-        | f5Query virtualServers="/Common/trans.mycompany_86_vs','/Common/post.mycompany_81_vs'" getStats=True partition="common" device="f5.com"
+        | f5Query vserver="/Common/trans.mycompany_86_vs','/Common/post.mycompany_81_vs'" stats=True partition="common" device="f5.com"
 
     """
 
@@ -398,8 +424,8 @@ class f5QueryCommand(GeneratingCommand):
          **Description:** Comma separated list virtual Servers.''',
         require=False)
 
-    getStats = Option(
-        doc='''**Syntax:** **getStats=***boolean*
+    stats = Option(
+        doc='''**Syntax:** **stats=***boolean*
          **Description:** Set get stats flag. default False. ''',
         require=False)
 
@@ -435,7 +461,7 @@ class f5QueryCommand(GeneratingCommand):
                 f5.vserver_list()
             else:
                 f5.vserver_list(self.vservers)
-            if self.getStats:
+            if self.stats:
                 f5threads.run(target=f5.vserver_stats)
             f5threads.run(target=f5.vserver_dest)
             f5threads.run(target=f5.vserver_pool)
@@ -447,11 +473,13 @@ class f5QueryCommand(GeneratingCommand):
             else:
                 f5.pool_list(self.pools)
             f5threads.run(target=f5.pool_status)
-            if self.poolOnly != 'true':
-                if self.getStats == 'true':
-                    f5threads.run(target=f5.member_stats)
-                f5threads.run(target=f5.members)
-                f5threads.run(target=f5.member_status)
+            poolOnly = self.poolOnly.lower() if self.poolOnly else self.poolOnly
+            if poolOnly != 'true':
+                stats = self.stats.lower() if self.stats else self.stats
+                if stats == 'true':
+                    f5threads.run(target=f5.pool_member_stats)
+                f5threads.run(target=f5.pool_members)
+                f5threads.run(target=f5.pool_member_status)
 
         # waiting for threads to return
         for thread in f5threads.jobs:
@@ -459,11 +487,15 @@ class f5QueryCommand(GeneratingCommand):
 
         if self.pools:
             for pool in f5.pools_output():
+                pool['source'] = 'f5'
+                pool['sourcetype'] = 'icontrol'
                 yield pool
 
         # if self.virtualServer is define get virtual Server information
         if self.vservers:
             for vserver in f5.vserver_output():
+                vserver['source'] = 'f5'
+                vserver['sourcetype'] = 'icontrol'
                 yield vserver
 
 dispatch(f5QueryCommand, sys.argv, sys.stdin, sys.stdout, __name__)
